@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Pochita Vjppro - Fixed 100%</title>
+    <title>Pochita Vjppro - Single Layer UI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <style>
@@ -23,7 +23,6 @@
             flex: 1;
             display: flex;
             align-items: center;
-            /* Dùng font monospace để mọi ký tự rộng bằng nhau */
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
             font-size: 1.75rem;
             font-weight: 900;
@@ -33,7 +32,7 @@
             background: transparent;
             border: none;
             outline: none;
-            color: transparent;
+            color: transparent; /* Giấu chữ của input thật */
             caret-color: #6366f1;
             z-index: 10;
             font-family: inherit;
@@ -46,16 +45,22 @@
             transform: translateY(-50%);
             line-height: 1;
         }
+        /* Fix lỗi bôi đen hiện 2 lớp số */
+        .real-input::selection {
+            background: rgba(99, 102, 241, 0.3);
+            color: transparent;
+        }
         .display-view {
             display: flex;
             align-items: baseline;
             pointer-events: none;
             white-space: nowrap;
             line-height: 1;
+            user-select: none; /* Không cho phép bôi đen lớp hiển thị này */
         }
         .digit-inner, .char-inner { 
             display: inline-block; 
-            width: 0.6em; /* Ép độ rộng cố định */
+            width: 0.6em; 
             text-align: center;
             will-change: transform, opacity;
         }
@@ -67,11 +72,13 @@
             margin-right: 8px;
             font-weight: 700;
             font-family: 'Inter', sans-serif;
+            user-select: none;
         }
         .label-name {
             font-family: 'Inter', sans-serif;
             width: 50px;
             text-align: right;
+            user-select: none;
         }
     </style>
 </head>
