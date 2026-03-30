@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Pochita Vjppro - Fixed UI</title>
+    <title>Pochita Vjppro - Clean UI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <style>
@@ -27,7 +27,6 @@
             font-weight: 900;
             letter-spacing: -0.02em;
         }
-        /* Input thật nằm trên, trong suốt màu chữ nhưng giữ con trỏ */
         .real-input {
             grid-area: 1 / 1;
             background: transparent;
@@ -43,7 +42,6 @@
             letter-spacing: inherit;
             padding: 0;
         }
-        /* View hiển thị nằm dưới */
         .display-view {
             grid-area: 1 / 1;
             display: flex;
@@ -54,12 +52,12 @@
         }
         .digit-inner { 
             display: inline-block; 
-            min-width: 0.6em; /* Giữ khoảng cách cố định để không bị dính số */
+            min-width: 0.6em; 
             text-align: center;
             will-change: transform, opacity;
         }
-        .decimal-dim { color: #475569; font-size: 0.75em; }
-        .currency-symbol { color: #94a3b8; font-size: 1.1rem; width: 1.5rem; text-align: center; }
+        .decimal-dim { color: #475569 !important; font-size: 0.85em; }
+        .currency-symbol { color: #94a3b8; font-size: 1.1rem; width: 1.5rem; text-align: center; margin-right: 4px; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
@@ -87,22 +85,26 @@ let currentValues = { NESO: 0, NXPC: 0, USD: 0, VND: 0 };
 let lastStrings = {};
 
 function format(val, id) {
-    return val.toLocaleString('de-DE', { 
-        minimumFractionDigits: id === 'VND' ? 0 : 4, 
+    let s = val.toLocaleString('de-DE', { 
+        minimumFractionDigits: 0, 
         maximumFractionDigits: 4 
     });
+    return s;
 }
 
 function renderView(str, id) {
     const container = document.getElementById(`view-${id}`);
     container.innerHTML = '';
+    let hasComma = false;
+
     [...str].forEach(char => {
+        if (char === ',') hasComma = true;
         const span = document.createElement('span');
+        span.innerText = char;
+        
         if (/[0-9]/.test(char)) {
-            span.className = 'digit-inner';
-            span.innerText = char;
+            span.className = 'digit-inner' + (hasComma ? ' decimal-dim' : '');
         } else {
-            span.innerText = char;
             span.className = 'decimal-dim';
         }
         container.appendChild(span);
@@ -159,24 +161,24 @@ function sync(sourceId, str, isTyping) {
             const spans = container.querySelectorAll('.digit-inner');
             const newChars = [...fmt];
             const oldChars = [...oldStr];
+            let digitIdx = 0;
 
-            for (let i = newChars.length - 1; i >= 0; i--) {
-                if (/[0-9]/.test(newChars[i])) {
-                    const digitPos = newChars.slice(0, i).filter(c => /[0-9]/.test(c)).length;
-                    const el = spans[digitPos];
-                    if (el && oldChars[i] !== newChars[i]) {
-                        gsap.killTweensOf(el);
+            newChars.forEach((char, i) => {
+                if (/[0-9]/.test(char)) {
+                    const el = spans[digitIdx];
+                    if (el && oldChars[i] !== char) {
                         gsap.to(el, {
-                            y: -10, opacity: 0, duration: 0.1,
+                            y: -8, opacity: 0, duration: 0.1,
                             onComplete: () => {
-                                el.innerText = newChars[i];
-                                gsap.fromTo(el, { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.2, ease: "back.out" });
+                                el.innerText = char;
+                                gsap.fromTo(el, { y: 8, opacity: 0 }, { y: 0, opacity: 1, duration: 0.2 });
                             },
                             delay: (newChars.length - i) * 0.015
                         });
                     }
+                    digitIdx++;
                 }
-            }
+            });
         }
         lastStrings[item.id] = fmt;
         document.getElementById(`raw-${item.id}`).value = fmt;
@@ -185,9 +187,8 @@ function sync(sourceId, str, isTyping) {
 
 config.forEach(item => {
     const input = document.getElementById(`raw-${item.id}`);
-    const startVal = format(0, item.id);
-    renderView(startVal, item.id);
-    lastStrings[item.id] = startVal;
+    renderView("0", item.id);
+    lastStrings[item.id] = "0";
 
     input.addEventListener('input', (e) => {
         let v = e.target.value.replace(/[^0-9,]/g, '');
