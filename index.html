@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Pochita Vjppro - Single Layer UI</title>
+    <title>Pochita Vjppro - Perfect Logic</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <style>
@@ -32,7 +32,7 @@
             background: transparent;
             border: none;
             outline: none;
-            color: transparent; /* Giấu chữ của input thật */
+            color: transparent;
             caret-color: #6366f1;
             z-index: 10;
             font-family: inherit;
@@ -45,7 +45,6 @@
             transform: translateY(-50%);
             line-height: 1;
         }
-        /* Fix lỗi bôi đen hiện 2 lớp số */
         .real-input::selection {
             background: rgba(99, 102, 241, 0.3);
             color: transparent;
@@ -56,29 +55,22 @@
             pointer-events: none;
             white-space: nowrap;
             line-height: 1;
-            user-select: none; /* Không cho phép bôi đen lớp hiển thị này */
+            user-select: none;
         }
         .digit-inner, .char-inner { 
             display: inline-block; 
             width: 0.6em; 
             text-align: center;
             will-change: transform, opacity;
+            transition: color 0.2s ease;
         }
         .decimal-dim { color: #475569 !important; }
         .currency-symbol { 
-            color: #475569; 
-            font-size: 1.1rem; 
-            width: 1.2rem; 
-            margin-right: 8px;
-            font-weight: 700;
-            font-family: 'Inter', sans-serif;
-            user-select: none;
+            color: #475569; font-size: 1.1rem; width: 1.2rem; margin-right: 8px;
+            font-weight: 700; font-family: 'Inter', sans-serif; user-select: none;
         }
         .label-name {
-            font-family: 'Inter', sans-serif;
-            width: 50px;
-            text-align: right;
-            user-select: none;
+            font-family: 'Inter', sans-serif; width: 50px; text-align: right; user-select: none;
         }
     </style>
 </head>
@@ -113,14 +105,18 @@ function format(val, id) {
 function renderView(str, id) {
     const container = document.getElementById(`view-${id}`);
     container.innerHTML = '';
-    let hasComma = false;
+    const commaIndex = str.indexOf(',');
 
-    [...str].forEach(char => {
-        if (char === ',') hasComma = true;
+    [...str].forEach((char, index) => {
         const span = document.createElement('span');
         span.innerText = char;
         span.className = /[0-9]/.test(char) ? 'digit-inner' : 'char-inner';
-        if (hasComma || char === '.' || char === ',') span.classList.add('decimal-dim');
+        
+        if (commaIndex !== -1 && index >= commaIndex) {
+            span.classList.add('decimal-dim');
+        } else if (char === '.') {
+            span.classList.add('decimal-dim');
+        }
         container.appendChild(span);
     });
 }
@@ -173,12 +169,13 @@ function sync(sourceId, str, isTyping) {
         if (oldStr.length !== fmt.length) {
             renderView(fmt, item.id);
             gsap.from(container.children, {
-                opacity: 0, y: 5, duration: 0.15, stagger: { each: 0.01, from: "end" }
+                opacity: 0, scale: 0.9, duration: 0.15, stagger: 0.01
             });
         } else {
             const spans = container.children;
             const newChars = [...fmt];
             const oldChars = [...oldStr];
+            const commaIdx = fmt.indexOf(',');
 
             newChars.forEach((char, i) => {
                 if (oldChars[i] !== char && spans[i]) {
@@ -187,9 +184,13 @@ function sync(sourceId, str, isTyping) {
                         y: -7, opacity: 0, duration: 0.08,
                         onComplete: () => {
                             spans[i].innerText = char;
+                            if (commaIdx !== -1 && i >= commaIdx) {
+                                spans[i].classList.add('decimal-dim');
+                            } else {
+                                spans[i].classList.remove('decimal-dim');
+                            }
                             gsap.fromTo(spans[i], { y: 7, opacity: 0 }, { y: 0, opacity: 1, duration: 0.15 });
-                        },
-                        delay: (newChars.length - i) * 0.01
+                        }
                     });
                 }
             });
