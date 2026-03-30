@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Pochita Vjppro - Clean UI</title>
+    <title>Pochita Thư kí vippro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <style>
@@ -21,46 +21,185 @@
         .input-wrapper {
             position: relative;
             flex: 1;
-            display: grid;
+            display: flex;
             align-items: center;
             font-size: 1.75rem;
             font-weight: 900;
             letter-spacing: -0.02em;
         }
         .real-input {
-            grid-area: 1 / 1;
+            width: 100%;
             background: transparent;
             border: none;
             outline: none;
-            width: 100%;
             color: transparent;
             caret-color: #6366f1;
-            z-index: 2;
+            z-index: 10;
             font-family: inherit;
             font-size: inherit;
             font-weight: inherit;
             letter-spacing: inherit;
             padding: 0;
+            position: absolute;
+            left: 0;
         }
         .display-view {
-            grid-area: 1 / 1;
             display: flex;
             align-items: baseline;
-            z-index: 1;
             pointer-events: none;
             white-space: nowrap;
+            position: relative;
         }
-        .digit-inner { 
+        .digit-inner, .char-inner { 
             display: inline-block; 
             min-width: 0.6em; 
             text-align: center;
             will-change: transform, opacity;
         }
         .decimal-dim { color: #475569 !important; font-size: 0.85em; }
-        .currency-symbol { color: #94a3b8; font-size: 1.1rem; width: 1.5rem; text-align: center; margin-right: 4px; }
+        .currency-symbol { color: #475569; font-size: 1.1rem; width: 1.2rem; display: inline-block; font-weight: 700; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
+
+<div class="w-full max-w-md space-y-4">
+    <div class="text-center mb-8">
+        <h1 class="text-4xl font-black italic tracking-tighter bg-gradient-to-r from-indigo-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent">
+            POCHITA VJPPRO
+        </h1>
+        <p id="status" class="text-[10px] text-slate-600 tracking-[0.3em] mt-2 uppercase font-bold"></p>
+    </div>
+    <div id="converter-list" class="space-y-3"></div>
+</div>
+
+<script>
+const config = [
+    { id: 'NESO', name: 'NESO', icon: 'https://dailyneso.com/static/img/logo.png', color: 'text-indigo-400', symbol: '' },
+    { id: 'NXPC', name: 'NXPC', icon: 'https://www.dailyneso.com/static/img/nxpc.png', color: 'text-emerald-400', symbol: '' },
+    { id: 'USD', name: 'USD', icon: 'https://cdn-icons-png.flaticon.com/512/197/197484.png', color: 'text-blue-400', symbol: '$' },
+    { id: 'VND', name: 'VND', icon: 'https://cdn-icons-png.flaticon.com/512/197/197473.png', color: 'text-red-400', symbol: '₫' }
+];
+
+let rates = { NXPC_USD: 0.279, USD_VND: 26258.25, NESO_NXPC: 100000 };
+let currentValues = { NESO: 0, NXPC: 0, USD: 0, VND: 0 };
+let lastStrings = {};
+
+function format(val, id) {
+    return val.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 4 });
+}
+
+function renderView(str, id) {
+    const container = document.getElementById(`view-${id}`);
+    container.innerHTML = '';
+    let hasComma = false;
+
+    [...str].forEach(char => {
+        if (char === ',') hasComma = true;
+        const span = document.createElement('span');
+        span.innerText = char;
+        span.className = /[0-9]/.test(char) ? 'digit-inner' : 'char-inner';
+        if (hasComma || char === '.' || char === ',') span.classList.add('decimal-dim');
+        container.appendChild(span);
+    });
+}
+
+const list = document.getElementById('converter-list');
+config.forEach(item => {
+    list.innerHTML += `
+        <div class="glass-card">
+            <img src="${item.icon}" class="w-10 h-10 rounded-full border border-slate-800">
+            <div class="input-wrapper">
+                <span class="currency-symbol">${item.symbol}</span>
+                <div class="relative flex-1">
+                    <input type="text" id="raw-${item.id}" class="real-input" placeholder="0" autocomplete="off">
+                    <div class="display-view" id="view-${item.id}"></div>
+                </div>
+            </div>
+            <span class="font-black italic tracking-tighter ${item.color} w-12 text-right">${item.name}</span>
+        </div>
+    `;
+});
+
+function sync(sourceId, str, isTyping) {
+    let raw = parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+    let nxpc = 0;
+    
+    if (sourceId === 'NESO') nxpc = raw / rates.NESO_NXPC;
+    else if (sourceId === 'NXPC') nxpc = raw;
+    else if (sourceId === 'USD') nxpc = raw / rates.NXPC_USD;
+    else if (sourceId === 'VND') nxpc = (raw / rates.USD_VND) / rates.NXPC_USD;
+
+    config.forEach(item => {
+        let val = 0;
+        if (item.id === 'NESO') val = nxpc * rates.NESO_NXPC;
+        else if (item.id === 'NXPC') val = nxpc;
+        else if (item.id === 'USD') val = nxpc * rates.NXPC_USD;
+        else if (item.id === 'VND') val = nxpc * rates.NXPC_USD * rates.USD_VND;
+
+        currentValues[item.id] = val;
+        let fmt = format(val, item.id);
+        
+        if (item.id === sourceId && isTyping) {
+            lastStrings[item.id] = str;
+            return;
+        }
+
+        const container = document.getElementById(`view-${item.id}`);
+        const oldStr = lastStrings[item.id] || "";
+
+        if (oldStr.length !== fmt.length) {
+            renderView(fmt, item.id);
+            gsap.from(container.children, {
+                opacity: 0, y: 5, duration: 0.2, stagger: { each: 0.01, from: "end" }
+            });
+        } else {
+            const spans = container.children;
+            const newChars = [...fmt];
+            const oldChars = [...oldStr];
+
+            newChars.forEach((char, i) => {
+                if (oldChars[i] !== char && spans[i]) {
+                    gsap.to(spans[i], {
+                        y: -8, opacity: 0, duration: 0.1,
+                        onComplete: () => {
+                            spans[i].innerText = char;
+                            gsap.fromTo(spans[i], { y: 8, opacity: 0 }, { y: 0, opacity: 1, duration: 0.2 });
+                        },
+                        delay: (newChars.length - i) * 0.01
+                    });
+                }
+            });
+        }
+        lastStrings[item.id] = fmt;
+        document.getElementById(`raw-${item.id}`).value = fmt;
+    });
+}
+
+config.forEach(item => {
+    const input = document.getElementById(`raw-${item.id}`);
+    renderView("0", item.id);
+    lastStrings[item.id] = "0";
+
+    input.addEventListener('input', (e) => {
+        let v = e.target.value.replace(/[^0-9,]/g, '');
+        if (v.split(',').length > 2) v = v.substring(0, v.lastIndexOf(','));
+        e.target.value = v;
+        renderView(v || "0", item.id);
+        sync(item.id, v, true);
+    });
+
+    input.addEventListener('blur', () => {
+        let f = format(currentValues[item.id], item.id);
+        renderView(f, item.id);
+        input.value = f;
+        lastStrings[item.id] = f;
+    });
+});
+
+document.getElementById('status').innerText = `1 NXPC ≈ $${rates.NXPC_USD} | $1 ≈ ${rates.USD_VND.toLocaleString('de-DE')} VND`;
+</script>
+</body>
+</html><body class="min-h-screen flex items-center justify-center p-4">
 
 <div class="w-full max-w-md space-y-4">
     <div class="text-center mb-8">
