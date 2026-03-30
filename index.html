@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Pochita Vjppro - Perfect Logic</title>
+    <title>Pochita Vjppro - Auto Format</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <style>
@@ -62,7 +62,6 @@
             width: 0.6em; 
             text-align: center;
             will-change: transform, opacity;
-            transition: color 0.2s ease;
         }
         .decimal-dim { color: #475569 !important; }
         .currency-symbol { 
@@ -98,23 +97,21 @@ let rates = { NXPC_USD: 0.279, USD_VND: 26258.25, NESO_NXPC: 100000 };
 let currentValues = { NESO: 0, NXPC: 0, USD: 0, VND: 0 };
 let lastStrings = {};
 
-function format(val, id) {
-    return val.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 4 });
+function formatNumberString(v) {
+    let parts = v.split(',');
+    parts[0] = parts[0].replace(/\./g, '').replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return parts.join(',');
 }
 
 function renderView(str, id) {
     const container = document.getElementById(`view-${id}`);
     container.innerHTML = '';
     const commaIndex = str.indexOf(',');
-
     [...str].forEach((char, index) => {
         const span = document.createElement('span');
         span.innerText = char;
         span.className = /[0-9]/.test(char) ? 'digit-inner' : 'char-inner';
-        
-        if (commaIndex !== -1 && index >= commaIndex) {
-            span.classList.add('decimal-dim');
-        } else if (char === '.') {
+        if ((commaIndex !== -1 && index >= commaIndex) || char === '.') {
             span.classList.add('decimal-dim');
         }
         container.appendChild(span);
@@ -156,7 +153,7 @@ function sync(sourceId, str, isTyping) {
         else if (item.id === 'VND') val = nxpc * rates.NXPC_USD * rates.USD_VND;
 
         currentValues[item.id] = val;
-        let fmt = format(val, item.id);
+        let fmt = val.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 4 });
         
         if (item.id === sourceId && isTyping) {
             lastStrings[item.id] = str;
@@ -168,15 +165,11 @@ function sync(sourceId, str, isTyping) {
 
         if (oldStr.length !== fmt.length) {
             renderView(fmt, item.id);
-            gsap.from(container.children, {
-                opacity: 0, scale: 0.9, duration: 0.15, stagger: 0.01
-            });
+            gsap.from(container.children, { opacity: 0, y: 5, duration: 0.15, stagger: 0.01 });
         } else {
             const spans = container.children;
             const newChars = [...fmt];
             const oldChars = [...oldStr];
-            const commaIdx = fmt.indexOf(',');
-
             newChars.forEach((char, i) => {
                 if (oldChars[i] !== char && spans[i]) {
                     gsap.killTweensOf(spans[i]);
@@ -184,11 +177,9 @@ function sync(sourceId, str, isTyping) {
                         y: -7, opacity: 0, duration: 0.08,
                         onComplete: () => {
                             spans[i].innerText = char;
-                            if (commaIdx !== -1 && i >= commaIdx) {
-                                spans[i].classList.add('decimal-dim');
-                            } else {
-                                spans[i].classList.remove('decimal-dim');
-                            }
+                            const commaIdx = fmt.indexOf(',');
+                            if ((commaIdx !== -1 && i >= commaIdx) || char === '.') spans[i].classList.add('decimal-dim');
+                            else spans[i].classList.remove('decimal-dim');
                             gsap.fromTo(spans[i], { y: 7, opacity: 0 }, { y: 0, opacity: 1, duration: 0.15 });
                         }
                     });
@@ -206,15 +197,28 @@ config.forEach(item => {
     lastStrings[item.id] = "0";
 
     input.addEventListener('input', (e) => {
-        let v = e.target.value.replace(/[^0-9,]/g, '');
-        if (v.split(',').length > 2) v = v.substring(0, v.lastIndexOf(','));
-        e.target.value = v;
-        renderView(v || "0", item.id);
-        sync(item.id, v, true);
+        let cursor = e.target.selectionStart;
+        let oldVal = e.target.value;
+        let clean = oldVal.replace(/[^0-9,]/g, '');
+        
+        if (clean.split(',').length > 2) clean = clean.substring(0, clean.lastIndexOf(','));
+        
+        let formatted = formatNumberString(clean);
+        
+
+        let dotsBefore = (oldVal.substring(0, cursor).match(/\./g) || []).length;
+        let dotsAfter = (formatted.substring(0, cursor).match(/\./g) || []).length;
+        let newCursor = cursor + (dotsAfter - dotsBefore);
+
+        e.target.value = formatted;
+        e.target.setSelectionRange(newCursor, newCursor);
+        
+        renderView(formatted || "0", item.id);
+        sync(item.id, formatted, true);
     });
 
     input.addEventListener('blur', () => {
-        let f = format(currentValues[item.id], item.id);
+        let f = currentValues[item.id].toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 4 });
         renderView(f, item.id);
         input.value = f;
         lastStrings[item.id] = f;
