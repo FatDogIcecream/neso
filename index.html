@@ -2,12 +2,12 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Pochita Vjppro</title>
+    <title>Pochita Vjppro - Rolling Numbers</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; background: #020617; color: #f1f5f9; }
+        body { font-family: 'Inter', sans-serif; background: #020617; color: #f1f5f9; overflow-x: hidden; }
         .glass-card {
             background: rgba(15, 23, 42, 0.6);
             backdrop-filter: blur(12px);
@@ -52,17 +52,9 @@
             display: flex;
             align-items: baseline;
         }
-        .decimal-dim {
-            color: #475569;
-            font-size: 0.75em;
-            font-weight: 700;
-        }
-        .currency-symbol {
-            color: #94a3b8;
-            font-size: 1.2rem;
-            margin-right: 6px;
-            font-weight: 700;
-        }
+        .digit-inner { display: inline-block; min-width: 0.6em; text-align: center; }
+        .decimal-dim { color: #475569; font-size: 0.75em; font-weight: 700; }
+        .currency-symbol { color: #94a3b8; font-size: 1.2rem; margin-right: 6px; font-weight: 700; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
@@ -87,6 +79,7 @@ const config = [
 
 let rates = { NXPC_USD: 0.279, USD_VND: 26258.25, NESO_NXPC: 100000 };
 let currentValues = { NESO: 0, NXPC: 0, USD: 0, VND: 0 };
+let lastDisplayStrings = { NESO: "", NXPC: "", USD: "", VND: "" };
 
 const list = document.getElementById('converter-list');
 config.forEach(item => {
@@ -96,25 +89,38 @@ config.forEach(item => {
             <div class="input-container">
                 <span class="currency-symbol">${item.symbol}</span>
                 <input type="text" id="raw-${item.id}" class="real-input" placeholder="0" autocomplete="off">
-                <div class="display-view" id="view-${item.id}">
-                    <span class="main-num">0</span><span class="decimal-dim">,0000</span>
-                </div>
+                <div class="display-view" id="view-${item.id}"></div>
             </div>
             <span class="font-black italic tracking-tighter ${item.color}">${item.name}</span>
         </div>
     `;
 });
 
-function formatDisplay(val, id) {
-    let s = val.toLocaleString('de-DE', { 
+function createDigitSpans(str, id) {
+    const container = document.getElementById(`view-${id}`);
+    container.innerHTML = '';
+    [...str].forEach((char) => {
+        const span = document.createElement('span');
+        if (/[0-9]/.test(char)) {
+            span.className = 'digit-inner';
+            span.innerText = char;
+        } else {
+            span.innerText = char;
+            span.className = (char === ',' || char === '.') ? 'decimal-dim' : '';
+            if(id === 'VND' && char === '.') span.className = 'opacity-30';
+        }
+        container.appendChild(span);
+    });
+}
+
+function formatValue(val, id) {
+    return val.toLocaleString('de-DE', { 
         minimumFractionDigits: id === 'VND' ? 0 : 4, 
         maximumFractionDigits: 4 
     });
-    let parts = s.split(',');
-    return { main: parts[0], decimal: parts[1] ? `,${parts[1]}` : "" };
 }
 
-function update(sourceId, str) {
+function update(sourceId, str, isTyping = false) {
     let num = parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
     let baseNXPC = 0;
     
@@ -130,40 +136,66 @@ function update(sourceId, str) {
         else if (item.id === 'USD') targetVal = baseNXPC * rates.NXPC_USD;
         else if (item.id === 'VND') targetVal = baseNXPC * rates.NXPC_USD * rates.USD_VND;
 
-        if (item.id === sourceId) {
-            currentValues[item.id] = targetVal;
-            return;
-        }
+        currentValues[item.id] = targetVal;
+        let fmt = formatValue(targetVal, item.id);
+        if (item.id === sourceId && isTyping) return;
 
-        gsap.to(currentValues, {
-            [item.id]: targetVal,
-            duration: 0.45,
-            ease: "power2.out",
-            onUpdate: () => {
-                let fmt = formatDisplay(currentValues[item.id], item.id);
-                document.getElementById(`view-${item.id}`).innerHTML = 
-                    `<span>${fmt.main}</span><span class="decimal-dim">${fmt.decimal}</span>`;
-                document.getElementById(`raw-${item.id}`).value = fmt.main + fmt.decimal;
+        const container = document.getElementById(`view-${item.id}`);
+        const oldStr = lastDisplayStrings[item.id] || "";
+
+        if (oldStr.length !== fmt.length) {
+            createDigitSpans(fmt, item.id);
+        } else {
+            const spans = container.querySelectorAll('.digit-inner');
+            let digitIdx = 0;
+            const fmtChars = [...fmt];
+            const oldChars = [...oldStr];
+
+            for (let i = fmtChars.length - 1; i >= 0; i--) {
+                if (/[0-9]/.test(fmtChars[i])) {
+                    const currentDigitIdx = fmtChars.slice(0, i).filter(c => /[0-9]/.test(c)).length;
+                    const targetSpan = spans[currentDigitIdx];
+                    
+                    if (oldChars[i] !== fmtChars[i] && targetSpan) {
+                        gsap.to(targetSpan, {
+                            y: -8, opacity: 0, duration: 0.15,
+                            onComplete: () => {
+                                targetSpan.innerText = fmtChars[i];
+                                gsap.fromTo(targetSpan, 
+                                    { y: 8, opacity: 0 }, 
+                                    { y: 0, opacity: 1, duration: 0.25, ease: "back.out(2)" }
+                                );
+                            },
+                            delay: (fmtChars.length - i) * 0.02
+                        });
+                    }
+                }
             }
-        });
+        }
+        lastDisplayStrings[item.id] = fmt;
+        if (item.id !== sourceId) document.getElementById(`raw-${item.id}`).value = fmt;
     });
 }
 
 config.forEach(item => {
     const input = document.getElementById(`raw-${item.id}`);
+    const view = document.getElementById(`view-${item.id}`);
+    
+    createDigitSpans("0", item.id);
+    lastDisplayStrings[item.id] = formatValue(0, item.id);
+
     input.addEventListener('input', (e) => {
         let val = e.target.value.replace(/[^0-9,]/g, '');
         e.target.value = val;
-        let num = parseFloat(val.replace(',', '.')) || 0;
-        let fmt = formatDisplay(num, item.id);
-        document.getElementById(`view-${item.id}`).innerHTML = 
-            `<span>${fmt.main}</span><span class="decimal-dim">${val.includes(',') ? ',' + val.split(',')[1] : fmt.decimal}</span>`;
-        update(item.id, val);
+        createDigitSpans(val || "0", item.id);
+        update(item.id, val, true);
     });
 
     input.addEventListener('blur', (e) => {
-        let fmt = formatDisplay(currentValues[item.id], item.id);
-        e.target.value = fmt.main + fmt.decimal;
+        let fmt = formatValue(currentValues[item.id], item.id);
+        createDigitSpans(fmt, item.id);
+        e.target.value = fmt;
+        lastDisplayStrings[item.id] = fmt;
     });
 });
 
